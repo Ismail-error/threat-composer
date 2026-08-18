@@ -26,5 +26,8 @@ jobs:
       - name: Verify AWS identity
         run: aws sts get-caller-identity
 
+      - name: Build Docker image
+        run: docker build -t threat-composer:${{ github.sha }} ./app
+
       - name: Confirm workflow is running
         run: echo "GitHub Actions workflow is running successfully"
