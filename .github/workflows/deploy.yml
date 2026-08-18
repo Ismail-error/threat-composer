@@ -17,5 +17,14 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v5
+        with:
+          role-to-assume: arn:aws:iam::108367189744:role/threat-composer-github-actions-role
+          aws-region: eu-west-2
+
+      - name: Verify AWS identity
+        run: aws sts get-caller-identity
+
       - name: Confirm workflow is running
         run: echo "GitHub Actions workflow is running successfully"
