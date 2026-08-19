@@ -63,5 +63,11 @@ jobs:
           cluster: threat-composer-cluster
           wait-for-service-stability: true
 
+      - name: Verify application health
+        run: |
+          RESPONSE=$(curl -s http://threat-composer-alb-1971271677.eu-west-2.elb.amazonaws.com/health)
+          echo "Health response: $RESPONSE"
+          test "$RESPONSE" = '{"status":"ok"}'
+
       - name: Confirm workflow is running
         run: echo "GitHub Actions workflow is running successfully"

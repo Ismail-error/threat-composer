@@ -62,5 +62,12 @@ resource "aws_ecs_service" "main" {
     container_name   = var.app_name
     container_port   = 80
   }
+
+  lifecycle {
+    ignore_changes = [
+      task_definition
+    ]
+  }
 }
+
 
