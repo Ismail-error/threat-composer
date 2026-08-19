@@ -2,49 +2,93 @@
 
 Threat Composer is a containerised web application for creating and managing cyber threat models.
 
-The application enables users to create, edit and visualise cyber threat models through an intuitive web interface, providing a structured way to document assets, threats and security considerations during the design of a system.
+The application enables users to create, edit and visualise cyber threat models through a web interface, providing a structured way to document threats, mitigations, assumptions and security considerations during system design.
 
-This repository contains both the application source code and the Terraform infrastructure used to provision and deploy the application to AWS using Infrastructure as Code (IaC).
+This repository contains the application source code, Docker configuration, Terraform infrastructure and GitHub Actions CI/CD pipeline used to deploy the application to AWS ECS Fargate.
 
 ---
 
 ## Why this project?
 
-This project was created to gain practical experience designing, building and managing cloud infrastructure using Terraform and AWS.
+This project was built to gain practical experience with containerisation, Infrastructure as Code and automated cloud deployments.
 
-Rather than provisioning resources manually through the AWS Management Console, all infrastructure is defined declaratively using Infrastructure as Code, making deployments repeatable, version-controlled and easier to maintain.
+The project progressed from understanding and deploying the AWS infrastructure manually to managing infrastructure with Terraform and finally automating application deployments through GitHub Actions.
 
----
-
-## Overview
-
-The infrastructure provisions the AWS resources required to deploy and run Threat Composer using Amazon ECS Fargate.
-
-The solution includes:
-
-- Amazon ECS Fargate
-- Application Load Balancer (ALB)
-- Amazon Elastic Container Registry (ECR)
-- Amazon CloudWatch Logs
-- AWS Identity and Access Management (IAM)
-- Security Groups
-- Amazon S3 Remote Terraform State
-
-The Terraform configuration follows industry best practices, including:
-
-- Modular architecture
-- Reusable Terraform modules
-- Remote state management
-- Input validation
-- Least-privilege IAM permissions
+The result is a repeatable deployment process where a push to the `main` branch automatically builds, versions and deploys a new container image to AWS.
 
 ---
 
 ## Architecture
 
-The diagram below illustrates the high-level AWS architecture used to deploy the Threat Composer application.
+The application runs as a Docker container on Amazon ECS using AWS Fargate.
 
-![Threat Composer AWS Architecture](docs/architecture.png)
+Application traffic flows through an Application Load Balancer to the ECS service. Container images are stored in Amazon ECR, while application logs are sent to Amazon CloudWatch.
+
+Terraform manages the AWS infrastructure, while GitHub Actions handles application deployments.
+
+High-level flow:
+
+```text
+Developer
+    |
+    | git push
+    v
+GitHub Repository
+    |
+    v
+GitHub Actions
+    |
+    | OIDC authentication
+    v
+AWS IAM
+    |
+    +------> Build Docker image
+    |              |
+    |              v
+    |         Amazon ECR
+    |              |
+    |              v
+    |      ECS Task Definition
+    |              |
+    |              v
+    |        ECS Fargate Service
+    |              |
+    |              v
+    |     Application Load Balancer
+    |              |
+    |              v
+    |        Threat Composer
+    |
+    +------> Post-deployment /health check
+```
+
+---
+
+## AWS Infrastructure
+
+The solution includes:
+
+- Amazon ECS Fargate
+- Amazon Elastic Container Registry (ECR)
+- Application Load Balancer (ALB)
+- Amazon CloudWatch Logs
+- AWS Identity and Access Management (IAM)
+- GitHub Actions OIDC authentication
+- Security Groups
+- Amazon S3 remote Terraform state
+
+Terraform is used to define and manage the infrastructure as code.
+
+The Terraform configuration includes:
+
+- Modular Terraform architecture
+- Remote state management
+- Input validation
+- IAM roles and policies
+- Security group configuration
+- ECS service and task definition
+- ALB target group health checks
+- ECR image repository
 
 ---
 
@@ -52,13 +96,25 @@ The diagram below illustrates the high-level AWS architecture used to deploy the
 
 ```text
 .
-├── app/                    # Threat Composer application
-├── infra/                  # Terraform infrastructure
+├── .github/
+│   └── workflows/
+│       └── deploy.yml          # GitHub Actions CI/CD pipeline
+│
+├── app/
+│   ├── Dockerfile
+│   ├── nginx.conf
+│   └── src/                    # Threat Composer source code
+│
+├── bootstrap/                  # Terraform backend bootstrap
+│
+├── infra/
 │   ├── modules/
 │   │   └── ecs/
 │   ├── alb.tf
 │   ├── backend.tf
+│   ├── ecr.tf
 │   ├── ecs.tf
+│   ├── github-oidc.tf
 │   ├── iam.tf
 │   ├── networking.tf
 │   ├── outputs.tf
@@ -66,8 +122,7 @@ The diagram below illustrates the high-level AWS architecture used to deploy the
 │   ├── security-groups.tf
 │   └── variables.tf
 │
-├── bootstrap/              # Terraform backend bootstrap configuration
-│
+├── .dockerignore
 ├── .gitignore
 └── README.md
 ```
@@ -77,69 +132,231 @@ The diagram below illustrates the high-level AWS architecture used to deploy the
 ## Technologies
 
 - Terraform
-- AWS ECS Fargate
-- Amazon Elastic Container Registry (ECR)
-- Application Load Balancer (ALB)
-- Amazon CloudWatch
-- AWS Identity and Access Management (IAM)
-- Amazon S3
 - Docker
+- GitHub Actions
+- AWS ECS Fargate
+- Amazon ECR
+- Application Load Balancer
+- Amazon CloudWatch
+- AWS IAM
+- GitHub Actions OIDC
+- Amazon S3
+- Nginx
 
 ---
 
-## Features
+## Infrastructure as Code
 
-- Infrastructure managed entirely with Terraform
-- Modular Terraform project structure
-- Containerised application deployment using Amazon ECS Fargate
-- Application Load Balancer for traffic distribution
-- CloudWatch logging for container monitoring
-- IAM roles managed through Terraform
-- Secure networking using Security Groups
-- Remote Terraform state stored in Amazon S3
-- State locking to support collaborative infrastructure management
-- Input validation for Terraform variables
+Terraform provisions and manages the AWS infrastructure required by the application.
+
+From the `infra` directory:
+
+```bash
+terraform init
+terraform fmt -recursive
+terraform validate
+terraform plan
+terraform apply
+```
+
+Terraform state is stored remotely in Amazon S3 rather than being committed to the repository.
+
+The ECS service uses a Terraform lifecycle rule to ignore changes to the deployed task definition revision. This allows Terraform to manage the ECS infrastructure while GitHub Actions manages application deployments without the two processes attempting to overwrite each other's changes.
+
+---
+
+## CI/CD Pipeline
+
+Application deployment is automated using GitHub Actions.
+
+The workflow is triggered by a push to the `main` branch.
+
+```text
+Push to main
+      |
+      v
+Checkout repository
+      |
+      v
+Authenticate to AWS using OIDC
+      |
+      v
+Login to Amazon ECR
+      |
+      v
+Build Docker image
+      |
+      v
+Tag image with Git commit SHA
+      |
+      v
+Push image to ECR
+      |
+      v
+Retrieve current ECS task definition
+      |
+      v
+Insert new image URI
+      |
+      v
+Register new task definition revision
+      |
+      v
+Update ECS Fargate service
+      |
+      v
+Wait for service stability
+      |
+      v
+Verify /health endpoint
+```
+
+### Image Versioning
+
+Docker images are tagged using the Git commit SHA rather than `latest`.
+
+For example:
+
+```text
+threat-composer:a1b7944bd47e2574e8c9638536a1f481dd80b329
+```
+
+This provides traceability between the source-code commit, Docker image and ECS deployment, making troubleshooting and rollback easier.
+
+---
+
+## Secure AWS Authentication
+
+GitHub Actions authenticates to AWS using OpenID Connect (OIDC).
+
+No long-lived AWS access keys or secret access keys are stored in GitHub.
+
+The workflow requests a temporary OIDC token, and AWS validates the token against the IAM role's trust policy before allowing the workflow to assume the deployment role.
+
+The trust relationship is restricted to this repository and the `main` branch.
+
+The GitHub Actions IAM role follows least-privilege principles and is granted only the permissions required to:
+
+- Authenticate with ECR
+- Push container images to the Threat Composer ECR repository
+- Read and register ECS task definitions
+- Update the Threat Composer ECS service
+- Pass the ECS task execution role when required
+
+---
+
+## Health Checks
+
+The application exposes:
+
+```text
+/health
+```
+
+which returns:
+
+```json
+{"status":"ok"}
+```
+
+The endpoint is used by the Application Load Balancer to determine whether ECS targets are healthy.
+
+GitHub Actions also performs a post-deployment request to `/health`. The deployment pipeline fails if the expected healthy response is not returned.
+
+This provides two levels of deployment verification:
+
+1. ECS must report the service as stable.
+2. The application itself must successfully respond to the health check.
 
 ---
 
 ## Deployment
 
-Terraform can be used to provision the infrastructure from the `infra` directory.
+### Infrastructure changes
 
-Initialise Terraform:
-
-```bash
-terraform init
-```
-
-Review the execution plan:
+Infrastructure changes are managed through Terraform:
 
 ```bash
+cd infra
+terraform fmt -recursive
+terraform validate
 terraform plan
-```
-
-Deploy the infrastructure:
-
-```bash
 terraform apply
 ```
 
-Once deployment completes, Terraform outputs the Application Load Balancer DNS name, which can be used to access the application.
+The execution plan should always be reviewed before applying changes.
+
+### Application changes
+
+Routine application deployments do not require manually building Docker images or updating ECS.
+
+After making an application change:
+
+```bash
+git add .
+git commit -m "Describe the change"
+git push
+```
+
+A push to `main` automatically triggers the GitHub Actions deployment pipeline.
+
+---
+
+## CI/CD Verification
+
+The pipeline was tested end-to-end by making a visible change to the Threat Composer application and pushing the change to `main`.
+
+No manual Docker build, ECR push or ECS deployment commands were performed.
+
+GitHub Actions automatically built the updated image, pushed it to ECR, created a new ECS task definition revision, updated the Fargate service, waited for service stability and verified the `/health` endpoint.
+
+The application change was then confirmed on the running AWS deployment.
+
+---
+
+## Key Features
+
+- Containerised application using Docker
+- Application served using Nginx
+- Infrastructure managed with Terraform
+- Modular Terraform configuration
+- Remote Terraform state in Amazon S3
+- ECS Fargate container deployment
+- Application Load Balancer
+- Dedicated `/health` endpoint
+- CloudWatch container logging
+- ECR image repository
+- Immutable SHA-based image versioning
+- Automated GitHub Actions CI/CD
+- Keyless AWS authentication using OIDC
+- Least-privilege IAM permissions
+- Automated ECS deployments
+- Post-deployment application health verification
+- Security Groups controlling network access
 
 ---
 
 ## Lessons Learned
 
-Building this project provided practical experience with:
+This project provided practical experience with:
 
-- Designing reusable Terraform modules
+- Containerising and running a web application with Docker
+- Building AWS infrastructure using Terraform
+- Structuring Terraform using modules
 - Managing remote Terraform state
-- Applying Infrastructure as Code best practices
-- Managing AWS IAM resources with Terraform
-- Deploying containerised workloads to Amazon ECS Fargate
-- Designing secure AWS networking using Security Groups
-- Structuring production-style Terraform projects
-- Deploying container images from Amazon ECR
+- Deploying workloads using ECS Fargate
+- Storing and versioning container images in ECR
+- Configuring Application Load Balancer health checks
+- Designing IAM trust and permission policies
+- Applying least-privilege access
+- Authenticating GitHub Actions to AWS using OIDC
+- Building CI/CD workflows with GitHub Actions
+- Tagging deployments using Git commit SHAs
+- Creating new ECS task definition revisions during deployment
+- Separating infrastructure ownership from application deployment ownership
+- Diagnosing IAM permission failures
+- Detecting and managing Terraform drift
+- Performing automated post-deployment health checks
 
 ---
 
@@ -147,10 +364,9 @@ Building this project provided practical experience with:
 
 Potential future enhancements include:
 
-- CI/CD pipeline using GitHub Actions
-- HTTPS support with AWS Certificate Manager
+- HTTPS using AWS Certificate Manager (ACM)
 - Route 53 custom domain
+- HTTP to HTTPS redirection
 - ECS Auto Scaling
-- Multi-environment deployments (development, staging and production)
-- CloudWatch dashboards and monitoring
-- Blue/Green deployment strategy
+- Separate development, staging and production environments
+- CloudWatch dashboards and alarms
