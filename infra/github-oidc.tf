@@ -78,10 +78,11 @@ data "aws_iam_policy_document" "github_actions_permissions" {
   }
 
   statement {
-    sid    = "RegisterTaskDefinition"
+    sid    = "TaskDefinitionManagement"
     effect = "Allow"
 
     actions = [
+      "ecs:DescribeTaskDefinition",
       "ecs:RegisterTaskDefinition"
     ]
 
