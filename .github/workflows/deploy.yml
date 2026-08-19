@@ -55,6 +55,13 @@ jobs:
           container-name: threat-composer
           image: ${{ steps.build-image.outputs.image }}
 
+                - name: Deploy to Amazon ECS
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+        with:
+          task-definition: ${{ steps.task-def.outputs.task-definition }}
+          service: threat-composer-service
+          cluster: threat-composer-cluster
+          wait-for-service-stability: true
+
       - name: Confirm workflow is running
         run: echo "GitHub Actions workflow is running successfully"
-        
