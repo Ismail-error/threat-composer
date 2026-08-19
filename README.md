@@ -8,11 +8,11 @@ This repository contains the application source code, Docker configuration, Terr
 
 ---
 
-## Why this project?
+## Why This Project?
 
-This project was built to gain practical experience with containerisation, Infrastructure as Code and automated cloud deployments.
+This project was built to gain practical experience with containerisation, Infrastructure as Code (IaC) and automated cloud deployments.
 
-The project progressed from understanding and deploying the AWS infrastructure manually to managing infrastructure with Terraform and finally automating application deployments through GitHub Actions.
+The project progressed from deploying and managing AWS infrastructure with Terraform to implementing an automated CI/CD pipeline with GitHub Actions.
 
 The result is a repeatable deployment process where a push to the `main` branch automatically builds, versions and deploys a new container image to AWS.
 
@@ -20,47 +20,15 @@ The result is a repeatable deployment process where a push to the `main` branch 
 
 ## Architecture
 
+The diagram below shows the AWS infrastructure and automated CI/CD deployment workflow used by the project.
+
+![Threat Composer AWS and CI/CD Architecture](docs/architecture.png)
+
 The application runs as a Docker container on Amazon ECS using AWS Fargate.
 
 Application traffic flows through an Application Load Balancer to the ECS service. Container images are stored in Amazon ECR, while application logs are sent to Amazon CloudWatch.
 
 Terraform manages the AWS infrastructure, while GitHub Actions handles application deployments.
-
-High-level flow:
-
-```text
-Developer
-    |
-    | git push
-    v
-GitHub Repository
-    |
-    v
-GitHub Actions
-    |
-    | OIDC authentication
-    v
-AWS IAM
-    |
-    +------> Build Docker image
-    |              |
-    |              v
-    |         Amazon ECR
-    |              |
-    |              v
-    |      ECS Task Definition
-    |              |
-    |              v
-    |        ECS Fargate Service
-    |              |
-    |              v
-    |     Application Load Balancer
-    |              |
-    |              v
-    |        Threat Composer
-    |
-    +------> Post-deployment /health check
-```
 
 ---
 
@@ -106,6 +74,9 @@ The Terraform configuration includes:
 │   └── src/                    # Threat Composer source code
 │
 ├── bootstrap/                  # Terraform backend bootstrap
+│
+├── docs/
+│   └── architecture.png        # AWS and CI/CD architecture diagram
 │
 ├── infra/
 │   ├── modules/
@@ -272,7 +243,7 @@ This provides two levels of deployment verification:
 
 ## Deployment
 
-### Infrastructure changes
+### Infrastructure Changes
 
 Infrastructure changes are managed through Terraform:
 
@@ -284,11 +255,11 @@ terraform plan
 terraform apply
 ```
 
-The execution plan should always be reviewed before applying changes.
+The Terraform execution plan should always be reviewed before applying infrastructure changes.
 
-### Application changes
+### Application Changes
 
-Routine application deployments do not require manually building Docker images or updating ECS.
+Routine application deployments do not require manually building Docker images, pushing images to ECR or updating ECS.
 
 After making an application change:
 
@@ -308,7 +279,15 @@ The pipeline was tested end-to-end by making a visible change to the Threat Comp
 
 No manual Docker build, ECR push or ECS deployment commands were performed.
 
-GitHub Actions automatically built the updated image, pushed it to ECR, created a new ECS task definition revision, updated the Fargate service, waited for service stability and verified the `/health` endpoint.
+GitHub Actions automatically:
+
+1. Built the updated Docker image.
+2. Tagged the image using the Git commit SHA.
+3. Pushed the image to Amazon ECR.
+4. Created a new ECS task definition revision.
+5. Updated the ECS Fargate service.
+6. Waited for the service to become stable.
+7. Verified the `/health` endpoint.
 
 The application change was then confirmed on the running AWS deployment.
 
@@ -366,7 +345,5 @@ Potential future enhancements include:
 
 - HTTPS using AWS Certificate Manager (ACM)
 - Route 53 custom domain
-- HTTP to HTTPS redirection
 - ECS Auto Scaling
-- Separate development, staging and production environments
 - CloudWatch dashboards and alarms
