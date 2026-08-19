@@ -45,7 +45,7 @@ const LandingPage: FC = () => {
             </SpaceBetween>
           }
         >
-          Threat Composer
+          Threat Composer - CI/CD Demo
         </Header>
       }
     >
