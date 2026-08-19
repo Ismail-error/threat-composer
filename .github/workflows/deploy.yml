@@ -55,7 +55,7 @@ jobs:
           container-name: threat-composer
           image: ${{ steps.build-image.outputs.image }}
 
-                - name: Deploy to Amazon ECS
+      - name: Deploy to Amazon ECS
         uses: aws-actions/amazon-ecs-deploy-task-definition@v2
         with:
           task-definition: ${{ steps.task-def.outputs.task-definition }}
